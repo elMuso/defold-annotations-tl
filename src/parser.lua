@@ -26,7 +26,7 @@ local function parse_path(json_path)
   filename = filename:sub(1, #filename - (1 + #config.json_extension))
 
   if utils.is_blacklisted(config.ignored_docs, filename) then
-    print('[-] The file "' .. json_path .. '" is skipped because it\'s on the ignore list')
+    -- print('[-] The file "' .. json_path .. '" is skipped because it\'s on the ignore list')
     return nil
   else
     local body = utils.read_file(json_path)
@@ -49,6 +49,7 @@ function parser.parse_json(json_paths)
     local module = parse_path(json_path)
 
     if module then
+      -- print('appending module ' ..  module.info.namespace)
       table.insert(modules, module)
     end
   end

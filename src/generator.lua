@@ -52,6 +52,31 @@ local function make_comment(text, tab)
   return result
 end
 
+--- Does what the name says. It splits for nesting and parsing support
+local function split_by_delimiter(str, regex)
+  -- Handle empty string case
+  if str == "" then
+    return {}
+  end
+
+  -- Use string.gmatch to iterate over matches
+  local result = {}
+  local start = 1
+  local delimiter_start, delimiter_end = string.find(str, regex, start)
+
+  while delimiter_start do
+    table.insert(result, string.sub(str, start, delimiter_start - 1))
+    start = delimiter_end + 1
+    delimiter_start, delimiter_end = string.find(str, regex, start)
+  end
+
+  -- Insert the last segment
+  table.insert(result, string.sub(str, start))
+
+  return result
+end
+
+
 ---Make an annotable module header
 ---@param defold_version string
 ---@param title string
@@ -75,46 +100,71 @@ local function make_header(defold_version, title, description)
   return result
 end
 
+---Not needed for Teal
 ---Make annotable diagnostic disable flags
 ---@param disabled_diagnostics string[] list of diagnostic disabel flags
 ---@return string
-local function make_disabled_diagnostics(disabled_diagnostics)
-  local result = ''
+-- local function make_disabled_diagnostics(disabled_diagnostics)
+--   local result = ''
 
-  for index, disabled_diagnostic in ipairs(disabled_diagnostics) do
-    result = result .. '---@diagnostic disable: ' .. disabled_diagnostic
+--   for index, disabled_diagnostic in ipairs(disabled_diagnostics) do
+--     result = result .. '---@diagnostic disable: ' .. disabled_diagnostic
 
-    if index < #config.disabled_diagnostics then
-      result = result .. '\n'
-    end
-  end
+--     if index < #config.disabled_diagnostics then
+--       result = result .. '\n'
+--     end
+--   end
 
-  return result
-end
+--   return result
+-- end
 
 ---Wrap the class body to an annotable namespace
 ---@param name string
 ---@param body string
 ---@return string
-local function make_namespace(name, body)
-  local result = ''
+local function make_namespace(name, body, isChild)
+  local start = ''
+  local final = ''
+  --Yeah, this is ugly, but it works
+  local namespaces = split_by_delimiter(name,"%.")
+  local indent = 0
+  for index, part in ipairs(namespaces) do
+    if index == 1 and isChild == false then
+      start = start .. 'global record ' .. part .. '\n'
+      final = final .. '\n'..'end\n'
+      indent = indent + 1
+    else
+      local tab = ''
+      for i=1,indent do tab = tab..'\t' end
+      start = start .. tab ..'record '..part..'\n'
+      final =  '\n'..tab .. 'end\n' .. final
+      indent = indent + 1
+    end
+  end
+  for i=1,indent do body = add_tab_to_lines(body) end
+  return start .. body .. final
+end
 
-  result = result .. '---@class defold_api.' .. name .. '\n'
-  result = result .. name .. ' = {}\n\n'
-  result = result .. body .. '\n\n'
-  result = result .. 'return ' .. name
 
-  return result
+---Nesting support
+function add_tab_to_lines(text)
+  -- Split the text into lines using pattern matching
+  text = text.."\t"
+  local lines = text:gsub("\n", "\n\t")
+  
+  -- Combine the lines back into a string
+  return "\t"..lines
 end
 
 ---Make an annotatable constant
 ---@param element element
 ---@return string
-local function make_const(element)
+--- Teal type creation
+local function make_const(element,namespace)
   local result = ''
 
   result = result .. make_comment(element.description) .. '\n'
-  result = result .. element.name .. ' = nil'
+  result = result .. "type ".. string.gsub(element.name,namespace..".","") .. ' = nil'
 
   return result
 end
@@ -189,9 +239,13 @@ local function make_param_types(name, types, is_optional, is_return, element)
       types[index] = config.unknown_type
     else
       type = type:gsub('function%(%)', 'function')
-
+      --- We need to replace the values with any... or document them on config. So... replacement it is
       if type:sub(1, 9) == 'function(' then
-        type = 'fun' .. type:sub(9)
+        local val = type:sub(9)
+        for _,rep in pairs(config.function_replacement) do
+          val = string.gsub(val,rep,'any')
+        end
+        type = 'function' .. val
       end
 
       types[index] = type
@@ -248,68 +302,100 @@ local function make_return(returnvalue, element)
 
   return '---@return ' .. types .. ' ' .. name .. ' ' .. description
 end
+--- Probably could merge the who functions... But if it works....
+local function make_return_type(returnvalue, element)
+  local name, is_optional = make_param_name(returnvalue, true, element)
+  local types = make_param_types(name, returnvalue.types, is_optional, true, element)
+  
+  return types
+end
 
 ---Make annotable func lines
 ---@param element element
 ---@return string?
-local function make_func(element)
+--- Heavily reworked, may be bugged
+local function make_func(element,namespace)
   if utils.is_blacklisted(config.ignored_funcs, element.name) then
     return
   end
-
   local result = ''
-
+  -- HOTFIX, too lazy to find logic
+  if string.find(element.name,'.dns')then
+    return ''
+  end
   result = result .. make_comment(element.description) .. '\n'
-
   for _, parameter in ipairs(element.parameters) do
     result = result .. make_param(parameter, element) .. '\n'
   end
-
+  local return_types = ''
   for _, returnvalue in ipairs(element.returnvalues) do
     result = result .. make_return(returnvalue, element) .. '\n'
+    if return_types ~= ''then
+      return_types = return_types ..','
+    end
+    return_types = return_types .. make_return_type(returnvalue,element)
   end
+  if not string.find(element.name,"%.") then
+    --it is a global function
+    result = result .. '\nglobal '
+    if element.name == 'hash' then
+      -- HOTFIX/DEVIATION: Teal doesn't like a record and function with the same name
+      element.name = 'hashmake'
+    end
+  end
+  -- if string.find(return_types,',') then
+  --     return_types =  "("..return_types..")"
+  -- end
 
-  local param_names = {}
+  local param_names = ''
 
   for _, parameter in ipairs(element.parameters) do
     local name = make_param_name(parameter, false, element)
-    table.insert(param_names, name)
+    local type = make_return_type(parameter,element)
+    if param_names ~= '' then
+      param_names = param_names..", "
+    end 
+    param_names = param_names .. name ..": " ..type
   end
-
-  result = result .. 'function ' .. element.name .. '(' .. table.concat(param_names, ', ') .. ') end'
-
+  result = result .. element.name.gsub(element.name,namespace..".","") .. ": function(" .. 
+    param_names .. ")"
+  if return_types~="" then
+    result = result..": " .. return_types
+  end
   return result
 end
 
 ---Make an annotable alias
 ---@param element element
 ---@return string
-local function make_alias(element)
-  return '---@alias ' .. element.name .. ' ' .. element.alias
+---Reworked for teal
+local function make_alias(element,_)
+  local pref = ''
+  --Need this to compile
+  if element.name == 'resource_handle' then
+    pref = 'global record userdata userdata end\n' 
+  end
+  if element.alias == 'userdata' then
+      return pref..'global record '..element.name ..' '..element.alias .. ' end' 
+  end
+  if string.find(element.alias,"|") then
+    return pref..'global type '..element.name ..' = '..element.alias 
+  end
+  return pref..'global type '..element.name ..' = '..element.alias
 end
 
----Make an annnotable class declaration
----@param element element
----@return string
-local function make_class(element)
-  local name = element.name
-  local fields = element.fields
-  assert(fields)
-
+local function make_class_child(element,fields)
   local result = ''
-  result = result .. '---@class ' .. name .. '\n'
-
-  if fields.is_global == true then
-    fields.is_global = nil
-    result = result .. name .. ' = {}'
-  end
-
   local field_names = utils.sorted_keys(fields)
   for index, field_name in ipairs(field_names) do
     local type = fields[field_name]
-
-    result = result .. '---@field ' .. field_name .. ' ' .. type
-
+    local range = split_by_delimiter(type,"|||")
+    if range[2] ~= nil then
+      result = result .. range[1] .. "\n"
+      result = result .. field_name .. ': ' .. range[2]
+    else
+      result = result .. field_name..': '.. range[1] .. "\n"
+    end
     if index < #field_names then
       result = result .. '\n'
     end
@@ -324,11 +410,11 @@ local function make_class(element)
 
     for index, operator_name in ipairs(operator_names) do
       local operator = operators[operator_name]
-
+      --HOTFIX THIS MIGHT BE BROKEN
       if operator.param then
-        result = result .. '---@operator ' .. operator_name .. '(' .. operator.param .. '): ' .. operator.result
+        result = result .. operator_name .. ': function(' .. operator.param .. '): ' .. operator.result
       else
-        result = result .. '---@operator ' .. operator_name .. ': ' .. operator.result
+        result = result .. operator_name .. ': function(): ' .. operator.result
       end
 
       if index < #operator_names then
@@ -336,7 +422,34 @@ local function make_class(element)
       end
     end
   end
+  return result
+  
+end
 
+
+--HOTFIX THIS MIGHT BE BROKEN when more than one nesting is present (Like in .dns case)
+---Make an annnotable class declaration
+---@param element table
+---@return string
+local function make_class(element,namespace)
+  local name = element.name
+  local fields = element.fields
+  assert(fields)
+
+  local result = ''
+  if fields.is_global == true then
+    fields.is_global = nil
+  end
+  if element.classes then
+    for _, child in ipairs(element.classes) do
+      local innerresult = make_class_child(child,child.fields)
+      result = result .. make_namespace(child.name,innerresult,true)
+    end
+    result = make_namespace(name,result,false)
+    return result
+  end
+  result = make_class_child(element,fields)
+  result = make_namespace(name,result,false)
   return result
 end
 
@@ -370,7 +483,7 @@ local function generate_api(module, defold_version)
 
   if #elements == 0 then
     print('[-] The module "' .. module.info.namespace .. '" is skipped because there are no known elements')
-    return
+    return ''
   end
 
   table.sort(elements, function(a, b)
@@ -382,10 +495,9 @@ local function generate_api(module, defold_version)
   end)
 
   local body = ''
-
   for index, element in ipairs(elements) do
     local maker = makers[element.type]
-    local text = maker(element)
+    local text = maker(element,module.info.namespace)
 
     if text then
       body = body .. text
@@ -397,16 +509,66 @@ local function generate_api(module, defold_version)
     end
   end
 
-  content = content .. make_disabled_diagnostics(config.disabled_diagnostics) .. '\n\n'
-
+  --HOTFIX too lazy to figure out logic
+  for name,value in pairs(config.preappend) do
+    if name == module.info.namespace then
+      body = body..value
+    end
+  end
   if namespace_is_required then
-    content = content .. make_namespace(module.info.namespace, body)
+    content = content .. make_namespace(module.info.namespace, body,false)
   else
     content = content .. body
   end
+  return content
+end
 
-  local api_path = config.api_folder .. config.folder_separator .. module.info.namespace .. '.lua'
-  utils.save_file(content, api_path)
+local function remove_duplicates(input)
+  table.sort(input)
+  local result = {}
+  for key,value in ipairs(input) do
+    if value ~=input[key+1] then
+      table.insert(result,value)
+    end
+  end
+  return result
+end
+---comment
+---@param buffer table
+---@param line string
+---@param parameters string
+local function unfold_single_line(buffer,line,parameters)
+  local strip = string.gsub(parameters,": ", "")
+  local vars = split_by_delimiter(strip,"|")
+  for _, value in ipairs(vars) do
+    local t = string.gsub(line,parameters,': '..value)
+    table.insert(buffer, t)
+  end
+end
+---comment
+---@param output table
+---@param input table
+---@return nil
+local function unfold_lines(output, input)
+  for _,line in ipairs(input) do
+    local buffer = {}
+    local regLine = true
+    for _, group in ipairs(config.unfold_groups) do
+      if string.find(line,group) then
+        regLine = false
+        local lBuffer = {}
+        unfold_single_line(lBuffer,line, group)
+        for _, value in ipairs(remove_duplicates(lBuffer)) do
+          table.insert(buffer,value)
+        end
+      end
+    end
+    if regLine then
+      output.val = output.val .. line ..'\n'
+    else
+      unfold_lines(output, buffer)
+    end
+  end
 end
 
 --
@@ -415,16 +577,25 @@ end
 ---Generate API modules with creating .lua files
 ---@param modules module[]
 ---@param defold_version string like '1.0.0'
-function generator.generate_api(modules, defold_version)
+function generator.generate_global_api(modules, defold_version)
   print('-- Annotations Generation')
 
   terminal.delete_folder(config.api_folder)
   terminal.create_folder(config.api_folder)
-
+  local res = ''
   for _, module in ipairs(modules) do
-    generate_api(module, defold_version)
+    local ras =  generate_api(module, defold_version)
+    res = res .. ras
   end
+  local output = {val=''}
+  local input = split_by_delimiter(res,"\n") -- for recursion
+  ---WE NEED TO UNFOLD TO SOLVE A DAMN TEAL UNION RESTRICTION. Might affect future lsp docs
+  ---I honestly don't know how this could be solved without removing the restriction from teal
+  unfold_lines(output, input)
 
+  --- Everything is saved to one file
+  local api_path = config.api_folder .. config.folder_separator ..  'defold.d.tl'
+  utils.save_file(output.val, api_path)
   print('-- Annotations Generated Successfully!\n')
 end
 

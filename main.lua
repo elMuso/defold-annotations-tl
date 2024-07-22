@@ -6,6 +6,9 @@
   MIT license. See LICENSE for details.
 --]]
 
+---Ignore this is just a utility to avoid having to set the folder in my path
+-- package.path = package.path .. ";H:\\DefoldProjects\\defold-annotations-tl\\?.lua"
+
 local fetcher = require 'src.fetcher'
 local parser = require 'src.parser'
 local types = require 'src.types'
@@ -20,8 +23,8 @@ local json_paths = fetcher.fetch_docs(defold_version)
 -- Parse .json files to namespace modules
 local modules = parser.parse_json(json_paths)
 
--- Append the known types module
-table.insert(modules, types.make_module())
+-- Append the known types module at the start (IMPORTANT)
+table.insert(modules,1, types.make_module())
 
 -- Generate the API folder with .lua files
-generator.generate_api(modules, defold_version)
+generator.generate_global_api(modules, defold_version)

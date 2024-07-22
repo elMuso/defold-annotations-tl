@@ -25,7 +25,6 @@ function utils.save_file(content, path)
 
   assert(file:write(content), 'Error during writing to the file "' .. path .. '"')
   print('The file "' .. path .. '" has been successfully created')
-
   return file:close()
 end
 

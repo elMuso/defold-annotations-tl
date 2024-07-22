@@ -119,6 +119,8 @@ end
 ---@param extension string
 ---@param output_path string
 function terminal.list_all_files(folder_path, extension, output_path)
+  --Should delete if existing
+  terminal.delete_file(output_path)
   print('Listing the ' .. extension .. ' files at ' .. quoted(folder_path))
 
   local result = execute(

@@ -12,7 +12,7 @@ local config = {}
 config.folder_separator = package.config:sub(1, 1)
 
 ---Clean temporary files after completion
-config.clean_traces = true
+config.clean_traces = false
 
 ---Url of this project on github
 config.generator_url = 'github.com/astrochili/defold-annotations'
@@ -75,7 +75,8 @@ config.ignored_funcs = {
   'server:*',
   'master:*',
   'connected:*',
-  'unconnected:*'
+  'unconnected:*',
+  'socket.dns'
 }
 
 --- Global replacements for param names
@@ -105,82 +106,86 @@ config.global_type_replacements = {
   unconnected = 'socket_unconnected',
   ['vmath.vector3'] = 'vector3',
   ['vmath.vector4'] = 'vector4',
+  ['vmath.matrix3'] = 'matrix3',
+  ['vmath.matrix4'] = 'matrix4',
 }
 
 --- Local replacements for param types
+---TODO: I  was going to make records but this will probably lead to union problems so 
+---rely on documentation for clarification
 config.local_type_replacements = {
   ['buffer.create'] = {
-    param_table_declaration = '{ name:hash|string, type:constant, count:number }[]'
+    param_table_declaration = '{obj.buffer.declaration}'
   },
   ['buffer.set_metadata'] = {
-    param_table_values = 'number[]'
+    param_table_values = '{number}'
   },
   ['buffer.get_metadata'] = {
-    return_table_values = 'number[]'
+    return_table_values = '{number}'
   },
   ['collectionfactory.create'] = {
-    return_table_ids = 'table<string|hash, string|hash>'
+    return_table_ids = '{string|hash: string|hash}'
   },
   ['collectionproxy.get_resources'] = {
-    return_table_resources = 'string[]'
+    return_table_resources = '{string}'
   },
   ['collectionproxy.missing_resources'] = {
-    return_table_resources = 'string[]'
+    return_table_resources = '{string}'
   },
   ['crash.get_modules'] = {
-    return_table_modules = '{ name:string, address:string }[]'
+    return_table_modules = '{obj.crash.module}'
   },
   ['gui.clone_tree'] = {
-    return_table_clones = 'table<string|hash, node>'
+    return_table_clones = '{string|hash: node}'
   },
   ['gui.get_tree'] = {
-    return_table_clones = 'table<string|hash, node>'
+    return_table_clones = '{string|hash: node}'
   },
   ['gui.play_flipbook'] = {
-    param_table_play_properties = '{ offset:number|nil, playback_rate:number|nil }'
+    param_table_play_properties = 'obj.gui.play_flipbook.play_properties'
   },
   ['gui.stop_particlefx'] = {
-    param_table_options = '{ clear:boolean|nil }'
+    param_table_options = '{ boolean|nil }'
   },
   ['json.decode'] = {
-    param_table_options = '{ decode_null_as_userdata:boolean|nil }'
+    param_table_options = '{ boolean|nil }'
   },
   ['json.encode'] = {
-    param_table_options = '{ encode_empty_table_as_object:string }'
+    param_table_options = '{ string }'
   },
   ['particlefx.stop'] = {
-    param_table_options = '{ clear:boolean|nil }'
+    param_table_options = '{ boolean|nil}'
   },
   ['sprite.play_flipbook'] = {
-    param_table_options = '{ offset:number|nil, playback_rate:number|nil }'
+    param_table_options = '{ number|nil, number|nil }'
   },
   ['sound.play'] = {
-    param_table_play_properties = '{ delay:number|nil, gain:number|nil, pan:number|nil, speed:number|nil }'
+    param_table_play_properties = '{ number|nil, number|nil, number|nil, number|nil }'
   },
   ['sound.stop'] = {
-    param_table_stop_properties = '{ play_id:number }'
+    param_table_stop_properties = '{ number }'
   },
   ['model.play_anim'] = {
-    param_table_play_properties = '{ blend_duration:number|nil, offset:number|nil, playback_rate:number|nil}'
+    param_table_play_properties = '{ number|nil, number|nil, number|nil}'
   },
   ['image.load'] = {
-    return_table_image = '{ width:number, height:number, type:constant, buffer:string }'
+    return_table_image = '{ number, number, constant, string }'
   },
   ['image.load_buffer'] = {
-    return_table_image = '{ width:number, height:number, type:constant, buffer:buffer_data }'
+    return_table_image = '{ number, number, constant, buffer_data }'
   },
   ['physics.get_joint_properties'] = {
-    return_table_properties = '{ collide_connected:boolean|nil }'
+    return_table_properties = '{ boolean|nil }'
   },
   ['physics.raycast'] = {
-    param_table_options = '{ all:boolean|nil }',
-    return_table_result = 'physics.raycast_response[]|physics.raycast_response'
+    param_table_options = '{boolean|nil }',
+    return_table_result = 'table'
   },
   ['physics.get_shape'] = {
-    return_table_table = '{ type:number|nil, diameter:number|nil, dimensions:vector3|nil, height:number|nil }'
+    return_table_table = '{ number|nil, number|nil, vector3|nil, number|nil }'
   },
   ['physics.set_shape'] = {
-    param_table_table = '{ diameter:number|nil, dimensions:vector3|nil, height:number|nil }'
+    param_table_table = '{ number|nil, vector3|nil, number|nil }'
   },
   ['resource.create_atlas'] = {
     param_table_table = 'resource.atlas'
@@ -192,69 +197,69 @@ config.local_type_replacements = {
     param_table_table = 'resource.atlas'
   },
   ['resource.get_render_target_info'] = {
-    return_table_table = '{ handle:resource_handle, attachments:{ handle:resource_handle, width:number, height:number, depth:number, mipmaps:number, type:number, buffer_type:number }[] }'
+    return_table_table = '{ resource_handle, {{ resource_handle, number, number, number, number, number, number }} }'
   },
   ['resource.create_texture'] = {
-    param_table_table = '{ type:number, width:number, height:number, format:number, flags:number|nil, max_mipmaps:number|nil, compression_type:number|nil}'
+    param_table_table = '{ number, number, number, number, number|nil, number|nil, number|nil}'
   },
   ['resource.create_texture_async'] = {
-    param_table_table = '{ type:number, width:number, height:number, format:number, flags:number|nil, max_mipmaps:number|nil, compression_type:number|nil}'
+    param_table_table = '{ number, number, number, number, number|nil, number|nil, number|nil}'
   },
   ['resource.set_texture'] = {
-    param_table_table = '{ type:number, width:number, height:number, format:number, x:number|nil, y:number|nil, mipmap:number|nil, compression_type:number|nil}'
+    param_table_table = '{ number, number, number, number, number|nil, number|nil, number|nil, number|nil}'
   },
   ['resource.get_texture_info'] = {
-    return_table_table = '{ handle:resource_handle, width:number, height:number, depth:number, mipmaps:number, flags:number, type:number }'
+    return_table_table = '{ resource_handle, number, number, number, number, number, number }'
   },
   ['resource.get_text_metrics'] = {
-    param_table_options = '{ width:number|nil, leading:number|nil, tracking:number|nil, line_break:boolean|nil}',
-    return_table_metrics = '{ width:number, height:number, max_ascent:number, max_descent:number }'
+    param_table_options = '{ number|nil, number|nil, number|nil, boolean|nil}',
+    return_table_metrics = '{ number, number, number, number }'
   },
   ['resource.create_buffer'] = {
-    param_table_table = '{ buffer:buffer_data, transfer_ownership:boolean|nil }'
+    param_table_table = '{ buffer_data, boolean|nil }'
   },
   ['resource.set_buffer'] = {
-    param_table_table = '{ transfer_ownership: boolean|nil }'
+    param_table_table = '{  boolean|nil }'
   },
   ['render.draw'] = {
-    param_table_options = '{ frustum:matrix4|nil, frustum_planes:number|nil, constants:constant_buffer|nil }'
+    param_table_options = '{ matrix4|nil, number|nil, constant_buffer|nil }'
   },
   ['render.draw_debug3d'] = {
-    param_table_options = '{ frustum:matrix4|nil, frustum_planes:number|nil }'
+    param_table_options = '{ matrix4|nil, number|nil }'
   },
   ['render.predicate'] = {
-    param_table_tags = '(string|hash)[]'
+    param_table_tags = '{string|hash}'
   },
   ['render.render_target'] = {
-    param_table_parameters = 'table<number, { format:number, width:number, height:number, min_filter:number|nil, mag_filter:number|nil, u_wrap:number|nil, v_wrap:number|nil, flags:number|nil}>'
+    param_table_parameters = '{number: { number, number, number, number|nil, number|nil, number|nil, number|nil, number|nil}}'
   },
   ['render.set_camera'] = {
-    param_table_options = '{ use_frustum:boolean|nil }'
+    param_table_options = '{ boolean|nil }'
   },
   ['render.set_render_target'] = {
-    param_table_options = '{ transient:number[]|nil }'
+    param_table_options = '{ {number}|nil }'
   },
   ['sound.get_groups'] = {
-    return_table_groups = 'hash[]'
+    return_table_groups = '{hash}'
   },
   ['sys.get_sys_info'] = {
-    param_table_options = '{ ignore_secure:boolean|nil }',
-    return_table_sys_info = '{ device_model:string|nil, manufacturer:string|nil, system_name:string, system_version:string, api_version:string, language:string, device_language:string, territory:string, gmt_offset:number, device_ident:string|nil, user_agent:string|nil }'
+    param_table_options = '{ boolean|nil }',
+    return_table_sys_info = '{ string|nil, string|nil, string, string, string, string, string, string, number, string|nil, string|nil }'
   },
   ['sys.get_application_info'] = {
-    return_table_app_info = '{ installed:boolean }'
+    return_table_app_info = '{ boolean }'
   },
   ['sys.get_engine_info'] = {
-    return_table_engine_info = '{ version:string, version_sha1:string, is_debug:boolean }'
+    return_table_engine_info = '{ string, string, boolean }'
   },
   ['sys.get_ifaddrs'] = {
-    return_table_ifaddrs = '{ name:string, address:string|nil, mac:string|nil, up:boolean, running:boolean }'
+    return_table_ifaddrs = '{ string, string|nil, string|nil, boolean, boolean }'
   },
   ['sys.open_url'] = {
-    param_table_attributes = '{ target:string|nil, name:string|nil }'
+    param_table_attributes = '{ string|nil, string|nil }'
   },
   ['timer.get_info'] = {
-    return_table_data = '{ time_remaining:number, delay:number, repeating:boolean }'
+    return_table_data = '{ number, number, boolean }'
   }
 }
 
@@ -276,6 +281,7 @@ config.known_types = {
 }
 
 ---Known classes
+---Added nested classes support.
 config.known_classes = {
   vector3 = {
     fields = {
@@ -334,65 +340,92 @@ config.known_classes = {
     c2 = 'vector4',
     c3 = 'vector4',
   },
-  ['resource.atlas'] = {
-    texture = 'string|hash The path to the texture resource, e.g "/main/my_texture.texturec"',
-    animations = 'resource.animation[] A list of the animations in the atlas',
-    geometries = 'resource.geometry[] A list of the geometries that should map to the texture data',
+  ['resource'] = {
+    classes = {
+      ['atlas'] = { 
+        texture = '--The path to the texture resource, e.g "/main/my_texture.texturec" ||| (string|hash)',
+      animations = '--A list of the animations in the atlas|||{animation}',
+      geometries = '--A list of the geometries that should map to the texture data|||{geometry}',},
+      ['animation'] = {
+        id = '--The id of the animation, used in e.g sprite.play_animation|||string',
+        width = '--The width of the animation|||integer',
+        height = '--The height of the animation|||integer',
+        frame_start = '--Index to the first geometry of the animation. Indices are lua based and must be in the range of 1 .. in atlas.|||integer',
+        frame_end = '--Index to the last geometry of the animation (non-inclusive). Indices are lua based and must be in the range of 1 .. in atlas.|||integer',
+        playback = '--Optional playback mode of the animation, the default value is go.PLAYBACK_ONCE_FORWARD|||constant|nil',
+        fps = '--Optional fps of the animation, the default value is 30|||integer|nil',
+        flip_vertical = '--Optional flip the animation vertically, the default value is false|||boolean|nil',
+        flip_horizontal = '--Optional flip the animation horizontally, the default value is false|||boolean|nil'
+      },
+      ['geometry']={
+        id = '--The name of the geometry. Used when matching animations between multiple atlases|||string',
+        vertices = '--A list of the vertices in texture space of the geometry in the form { px0, py0, px1, py1, ..., pxn, pyn }|||{number}',
+        uvs = '--A list of the uv coordinates in texture space of the geometry in the form of { u0, v0, u1, v1, ..., un, vn }|||{number}',
+        indices = '--A list of the indices of the geometry in the form { i0, i1, i2, ..., in }. Each tripe in the list represents a triangle.|||{number}'
+      }
+    }
   },
-  ['resource.animation'] = {
-    id = 'string The id of the animation, used in e.g sprite.play_animation',
-    width = 'integer The width of the animation',
-    height = 'integer The height of the animation',
-    frame_start = 'integer Index to the first geometry of the animation. Indices are lua based and must be in the range of 1 .. in atlas.',
-    frame_end = 'integer Index to the last geometry of the animation (non-inclusive). Indices are lua based and must be in the range of 1 .. in atlas.',
-    playback = 'constant|nil Optional playback mode of the animation, the default value is go.PLAYBACK_ONCE_FORWARD',
-    fps = 'integer|nil Optional fps of the animation, the default value is 30',
-    flip_vertical = 'boolean|nil Optional flip the animation vertically, the default value is false',
-    flip_horizontal = 'boolean|nil Optional flip the animation horizontally, the default value is false'
+
+  
+  ['on_input'] = {
+    classes = {
+      ['action'] = {
+        value = '---The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement.|||number|nil',
+        pressed = '--If the input was pressed this frame. This is not present for mouse movement.|||boolean|nil',
+        released = '--If the input was released this frame. This is not present for mouse movement.|||boolean|nil',
+        repeated = '--If the input was repeated this frame. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.|||boolean|nil',
+        x = '---The x value of a pointer device, if present.|||number|nil',
+        y = '---The y value of a pointer device, if present.|||number|nil',
+        screen_x = '---The screen space x value of a pointer device, if present.|||number|nil',
+        screen_y = '---The screen space y value of a pointer device, if present.|||number|nil',
+        dx = '---The change in x value of a pointer device, if present.|||number|nil',
+        dy = '---The change in y value of a pointer device, if present.|||number|nil',
+        screen_dx = '---The change in screen space x value of a pointer device, if present.|||number|nil',
+        gamepad = '--The change in screen space y value of a pointer device, if present.|||integer|nil',
+        screen_dy = '---The index of the gamepad device that provided the input.|||number|nil',
+        touch = '--List of touch input, one element per finger, if present.|||{touch}|nil'
+      },
+      ['touch']={
+        id = '--A number identifying the touch input during its duration.|||number',
+        pressed = '--True if the finger was pressed this frame.|||boolean',
+        released = '--True if the finger was released this frame.|||boolean',
+        tap_count = '--Number of taps, one for single, two for double-tap, etc|||integer',
+        x = '--The x touch location.|||number',
+        y = '--The y touch location.|||number',
+        dx = '--The change in x value.|||number',
+        dy = '--The change in y value.|||number',
+        acc_x = '---Accelerometer x value (if present).|||number|nil',
+        acc_y = '---Accelerometer y value (if present).|||number|nil',
+        acc_z = '---Accelerometer z value (if present).|||number|nil'
+      }
+    },
   },
-  ['resource.geometry'] = {
-    id = 'string The name of the geometry. Used when matching animations between multiple atlases',
-    vertices = 'number[] A list of the vertices in texture space of the geometry in the form { px0, py0, px1, py1, ..., pxn, pyn }',
-    uvs = 'number[] A list of the uv coordinates in texture space of the geometry in the form of { u0, v0, u1, v1, ..., un, vn }',
-    indices = 'number[] A list of the indices of the geometry in the form { i0, i1, i2, ..., in }. Each tripe in the list represents a triangle.'
+  ['obj'] ={
+    classes = {
+      ['buffer.declaration'] = {
+        name= '---The name of the stream|||hash|string',
+        type= '---The data type of the stream|||constant',
+        count='---The number of values each element should hold|||number'
+      },
+      ['crash.module'] = {
+        name= '---The name of the module|||string',
+        address= '---The address of the module|||string',
+      },
+      ['gui.play_flipbook.play_properties'] = {
+        offset = '---The normalized initial value of the animation cursor when the animation starts playing|||number|nil',
+        playback_rate = '---The rate with which the animation will be played. Must be positive|||number|nil'
+      },
+      ['physics.raycast_response'] = {
+        fraction = '--The fraction of the hit measured along the ray, where 0 is the start of the ray and 1 is the end|||number',
+        position = '--The world position of the hit|||vector3',
+        normal = '--The normal of the surface of the collision object where it was hit|||vector3',
+        id = '--The instance id of the hit collision object|||hash',
+        group = '--The collision group of the hit collision object as a hashed name|||hash',
+        request_id = '--The id supplied when the ray cast was requeste|||number'
+      },
+    },
+    
   },
-  ['physics.raycast_response'] = {
-    fraction = 'number The fraction of the hit measured along the ray, where 0 is the start of the ray and 1 is the end',
-    position = 'vector3 The world position of the hit',
-    normal = 'vector3 The normal of the surface of the collision object where it was hit',
-    id = 'hash The instance id of the hit collision object',
-    group = 'hash The collision group of the hit collision object as a hashed name',
-    request_id = 'number The id supplied when the ray cast was requested'
-  },
-  ['on_input.action'] = {
-    value = 'number|nil The amount of input given by the user. This is usually 1 for buttons and 0-1 for analogue inputs. This is not present for mouse movement.',
-    pressed = 'boolean|nil If the input was pressed this frame. This is not present for mouse movement.',
-    released = 'boolean|nil If the input was released this frame. This is not present for mouse movement.',
-    repeated = 'boolean|nil If the input was repeated this frame. This is similar to how a key on a keyboard is repeated when you hold it down. This is not present for mouse movement.',
-    x = 'number|nil The x value of a pointer device, if present.',
-    y = 'number|nil The y value of a pointer device, if present.',
-    screen_x = 'number|nil The screen space x value of a pointer device, if present.',
-    screen_y = 'number|nil The screen space y value of a pointer device, if present.',
-    dx = 'number|nil The change in x value of a pointer device, if present.',
-    dy = 'number|nil The change in y value of a pointer device, if present.',
-    screen_dx = 'number|nil The change in screen space x value of a pointer device, if present.',
-    gamepad = 'integer|nil The change in screen space y value of a pointer device, if present.',
-    screen_dy = 'number|nil The index of the gamepad device that provided the input.',
-    touch = '[on_input.touch]|nil List of touch input, one element per finger, if present.'
-  },
-  ['on_input.touch'] = {
-    id = 'number A number identifying the touch input during its duration.',
-    pressed = 'boolean True if the finger was pressed this frame.',
-    released = 'boolean True if the finger was released this frame.',
-    tap_count = 'integer Number of taps, one for single, two for double-tap, etc',
-    x = 'number The x touch location.',
-    y = 'number The y touch location.',
-    dx = 'number The change in x value.',
-    dy = 'number The change in y value.',
-    acc_x = 'number|nil Accelerometer x value (if present).',
-    acc_y = 'number|nil Accelerometer y value (if present).',
-    acc_z = 'number|nil Accelerometer z value (if present).'
-  }
 }
 
 ---Known aliases
@@ -404,7 +437,7 @@ config.known_aliases = {
   quaternion = 'vector4',
   hash = 'userdata',
   node = 'userdata',
-  constant = 'userdata',
+  constant = 'any',
 
   resource_data = 'userdata',
   constant_buffer = 'userdata',
@@ -428,6 +461,77 @@ config.disabled_diagnostics = {
   'missing-return',
   'duplicate-doc-param',
   'duplicate-set-field'
+}
+--- This fixes some incompatibilities. But it's not updated and i 
+--- didn't wanted to rewrite the parser so this will suffice
+config.preappend = {
+  ['socket'] = "\n\z
+  record dns\n\z
+  ---This function converts a host name to IPv4 or IPv6 address.\n\z
+	---The supplied address can be an IPv4 or IPv6 address or host name.\n\z
+	---The function returns a table with all information returned by the resolver:\n\z
+	---{\n\z
+	--- [1] = {\n\z
+	---    family = family-name-1,\n\z
+	---    addr = address-1\n\z
+	---  },\n\z
+	---  ...\n\z\n\z
+	---  [n] = {\n\z
+	---    family = family-name-n,\n\z
+	---    addr = address-n\n\z
+	---  }\n\z
+	---}\n\z
+	---Here, family contains the string 'inet' for IPv4 addresses, and 'inet6' for IPv6 addresses.\n\z
+	---In case of error, the function returns nil followed by an error message.\n\z
+	---@param address string a hostname or an IPv4 or IPv6 address.\n\z
+	---@return table|nil resolved a table with all information returned by the resolver, or if an error occurs, nil.\n\z
+	---@return string|nil error the error message, or nil if no error occurred.\n\z
+	  getaddrinfo: function(address: string): (table|nil,string|nil)\n\z
+	\n\z
+    ---Returns the standard host name for the machine as a string.\n\z
+    ---@return string hostname the host name for the machine.\n\z
+    gethostname: function(): string\n\z
+    \n\z
+    ---This function converts an address to host name.\n\z
+    ---The supplied address can be an IPv4 or IPv6 address or host name.\n\z
+    ---The function returns a table with all information returned by the resolver:\n\z
+    ---{\n\z
+    ---  [1] = host-name-1,\n\z
+    ---  ...\n\z
+    ---  [n] = host-name-n,\n\z
+    ---}\n\z
+    ---@param address string a hostname or an IPv4 or IPv6 address.\n\z
+    ---@return table|nil resolved a table with all information returned by the resolver, or if an error occurs, nil.\n\z
+    ---@return string|nil error the error message, or nil if no error occurred.\n\z
+    getnameinfo: function(address: string): (table|nil,string|nil)\n\z
+    \n\z
+    ---This function converts from an IPv4 address to host name.\n\z
+    ---The address can be an IPv4 address or a host name.\n\z
+    ---@param address string an IPv4 address or host name.\n\z
+    ---@return string|nil hostname the canonic host name of the given address, or nil in case of an error.\n\z
+    ---@return table|string resolved a table with all information returned by the resolver, or if an error occurs, the error message string.\n\z
+    tohostname: function(address: string): (string|nil,table|string)\n\z
+    \n\z
+    ---This function converts a host name to IPv4 address.\n\z
+    ---The address can be an IP address or a host name.\n\z
+    ---@param address string a hostname or an IP address.\n\z
+    ---@return string|nil ip_address the first IP address found for the hostname, or nil in case of an error.\n\z
+    ---@return table|string resolved a table with all information returned by the resolver, or if an error occurs, the error message string.\n\z
+    toip: function(address: string): (string|nil,table|string)\n\z
+  end"
+}
+--We replace the callback names with it's respective type since teal doesn't support named calllback parameters
+config.function_replacement = {
+  'self','url','result','property','node','emitter','state','status','hexdigest','message','data','request_id',
+  'handle', 'any_id','id','time_elapsed','traceback','event','sender', 'source','response'
+}
+--- This are function types that give an error due to how Union are handled between tables in Teal
+--- So, if a type matches this the line will be unfolded to all the possible variants
+--- Like Java. But simple
+config.unfold_groups = {
+  ': string|hash|constant', ': constant|vector4|vector3',': number|hash|url|vector3|vector4|quaternion|resource_data|boolean',
+  ': quaternion|vector4',': vector3|vector4|quaternion',': number|vector3|vector4|quaternion',': number|vector4|vector3|quaternion',
+  ': string|hash|url|table|nil',': vector3|vector4',': vector4|vector3',': vector3|quaternion',': vector4|quaternion'
 }
 
 return config

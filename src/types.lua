@@ -27,15 +27,25 @@ function types.make_module()
 
   local class_names = utils.sorted_keys(config.known_classes)
   for _, class_name in ipairs(class_names) do
+    --Add support for some basic nesting
     local known_class = config.known_classes[class_name]
-
+    local in_classes = nil
+    if known_class.classes then
+      in_classes = {}
+      for itemname, item in pairs(known_class.classes) do
+        table.insert(in_classes,{
+          name = itemname,
+          fields = item
+        })
+      end
+    end
     local element = {
       type = 'BASIC_CLASS',
       name = class_name,
       fields = known_class.fields or known_class,
+      classes = in_classes,
       operators = known_class.operators
     }
-
     table.insert(types_module.elements, element)
   end
 
