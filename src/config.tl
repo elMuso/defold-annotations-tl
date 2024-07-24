@@ -11,6 +11,7 @@ local record configuration
     api_folder:string
     ignored_docs:{string}
     quiet_mode:boolean
+    function_replacement:{string}
 end
 
 local config:configuration = {}
@@ -61,6 +62,18 @@ config.ignored_docs = {
     'engine_doc',
     'base_doc',
     'os_doc',
-    'io_doc'
+    'io_doc',
+    'client:*',
+    'server:*',
+    'master:*',
+    'connected:*',
+    'unconnected:*',
+    'socket.dns'
+  }
+
+--We replace the callback names with it's respective type since teal doesn't support named calllback parameters
+config.function_replacement = {
+    'self','url','result','property','node','emitter','state','status','hexdigest','message','data','request_id',
+    'handle', 'any_id','id','time_elapsed','traceback','event','sender', 'source','response'
   }
 return config

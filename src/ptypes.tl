@@ -1,8 +1,8 @@
 global record MFunc
     documentation:string
     name:string
-    parameters:{MParameter} ---name:type
-    return_value:{MParameter} 
+    params:{MParameter} ---can be nil
+    return_value:{MParameter} --can be nil
     tag:string -- FUNCTION
   end
   
@@ -23,7 +23,7 @@ global record MFunc
   global record MMessage
     documentation:string
     name:string
-    parameters: {MParameter}
+    params: {MParameter} --unused...?
     tag:string -- MESSAGE
   end
 ---These go inside messages or functions
@@ -36,8 +36,11 @@ global record MFunc
   end
 
   global record MModule
-    documentation:string
-    items:{string:{string:any}}
+    documentation:string -- can be nil
+    items:{table} -- can be nil
+    modules:{MModule} -- can be nil
+    tag:string --can be nil
+    name:string
   end
   
   global record MSingleItem
@@ -56,4 +59,6 @@ global record MFunc
     PROPERTY = "PROPERTY",
     MESSAGE = "MESSAGE",
     PARAMETER = "PARAMETER",
+    MODULE = "MODULE",
+    NESTED_MODULE = "NESTED_MODULE"
   }

@@ -64,68 +64,86 @@ function parser.parse_json(json_paths:{string}):{any}
   return modules
 end
 
-local function parse_module(bufferIndex:{string:MModule}, elements:table, info:table)
-  local modname = info.namespace as string -- or either info.name
-  local modbrief = info.brief
-  local moddesc = info.description
-  local bufferName = utils.split(modname,"%.")[1]
- 
-  if not bufferIndex[bufferName] then
-    -- print("making "..bufferName)
-    bufferIndex[bufferName] = {}
+local function createIfNotExisting(bufferIndex:{string:any}, name:string): table
+  if not bufferIndex[name] then
+      bufferIndex[name] = {}
   end
-  local buffer = bufferIndex[bufferName]
-  --- create a nice description for the main buffer
-  if modbrief and moddesc then
-    buffer.documentation = tostring(modbrief) .. '\n' .. utils.sanitized(tostring(moddesc))
-  else
-    buffer.documentation = 'No documentation'
-  end 
-  if not buffer.items then 
-    buffer.items = {}
-  end
-  for _, val in pairs(elements) do
-    local singleElement = val as MSingleItem
-    ---we split por each package
-    local namespaces:{string} = utils.split(singleElement.name,"%.")
-    local realName = namespaces[#namespaces]
-    namespaces[#namespaces] = nil
-    local modbuffer:{any} = maker.get_inner_buffer(buffer.items,namespaces)
-    ---get the singleelement name
-    
-    ---remove the last package since it's the Element name
-    
-    ---get the local buffer to write
-    
-    ---Type of the sharedInfo
-    local utype = singleElement.type as string
-    --- type can be VARIABLE, FUNCTION ,PROPERTY, MESSAGE
-    if utype == MType.VARIABLE then
-      -- modbuffer = buffer.items as {any}
-      maker.variable(modbuffer,realName,singleElement)
-    elseif utype == MType.FUNCTION then
-      -- maker.addfunction(modbuffer,realName,singleElement)
-    elseif utype == MType.PROPERTY then
-      --- All constants are not namepaced correctly, but they  aren't so this fixes it 
-      -- local nmprop:{string} = utils.split(realNamespace,"%.")
-      modbuffer = maker.get_inner_buffer(buffer.items,{bufferName})
-      maker.property(modbuffer,singleElement.name,singleElement)
-    elseif utype == MType.MESSAGE then
-      --- All messages are strings, so we make a single module with special treatment
-      if not bufferIndex["defoldmessages"] then
-        bufferIndex["defoldmessages"] = {}
-        local bf = maker.get_inner_buffer(bufferIndex,{"defoldmessages","items", "defoldmessages"})
-        bufferIndex["defoldmessages"].documentation = ''
-        bufferIndex["defoldmessages"].items = {}
+  return bufferIndex[name] as table
+end
+
+local function get_sub_module(origin:table,names:{string}):MModule
+  local currentModule:MModule = origin as MModule
+  local moduleIndex = createIfNotExisting(currentModule, "modules")
+  for _, nestedNamespace in ipairs(names) do
+    --- We check over existing modules to find a matching name and return
+    for _, element in ipairs(moduleIndex as {MModule}) do
+      if element.name == nestedNamespace then
+        return element
       end
-      maker.message(maker.get_inner_buffer(bufferIndex["defoldmessages"] as table,{"defoldmessages"}) as {table},realName,singleElement)
+    end
+    --- If no module is matched we create a new one
+    local nestedMod:MModule = {}
+    nestedMod.items = {}
+    nestedMod.name = nestedNamespace
+    nestedMod.tag = MType.NESTED_MODULE
+    table.insert(moduleIndex as {table},nestedMod as table)
+    return nestedMod
+  end
+  return origin as MModule
+end
+--- We add objects to bufferIndex based on the elements that we have
+local function parse_module(bufferIndex:{string:MModule}, elements:{string:MSingleItem}, info:table)
+  local namespaces = utils.split(info.namespace as string ,"%.") -- Divide the module name into namespaces
+  local modbrief = info.brief 
+  local moddesc = info.description
+  -- Store the current module name and delete it from namespaces
+  local modname = namespaces[1]
+  namespaces[1] = nil
+  local root:MModule = createIfNotExisting(bufferIndex, modname) as MModule
+
+  root.tag = MType.MODULE
+  root.name = modname
+  if modbrief and moddesc then
+    root.documentation = tostring(modbrief) .. '\n' .. utils.sanitized(tostring(moddesc))
+  end
+  createIfNotExisting(root as {string:any}, "items")
+  for _, single in pairs(elements) do
+    --- We remove the root name from the item name (if present)
+    local nm = string.gsub(single.name,root.name..".","") 
+    local names:{string} = utils.split(nm,"%.")
+    local uniqueName = names[#names]
+    --- Delete the own item name to avoid havind a submodule of element
+    names[#names] = nil
+    local module = get_sub_module(root as table, names)
+    local itemIndex = createIfNotExisting(module,"items") as {any}
+    module.documentation =  '""'
+
+    local utype = single.type as string
+      --- type can be VARIABLE, FUNCTION ,PROPERTY, MESSAGE
+    if utype == MType.VARIABLE then
+        maker.variable(itemIndex,uniqueName,single)
+    elseif utype == MType.FUNCTION then
+        maker.addfunction(itemIndex,uniqueName,single)
+    elseif utype == MType.PROPERTY then
+        ---! Properties in defold use go_set, generate accordingly
+        maker.property(itemIndex,uniqueName,single)
+    elseif utype == MType.MESSAGE then
+        --- * All messages are strings, so we make a single module with them
+        --- ? Consider markin single functions for them?
+        local msgModule = createIfNotExisting(bufferIndex, "defoldmsg") as MModule
+        --- Yeah it's not optimized but it works
+        msgModule.tag = MType.MODULE 
+        msgModule.name = "defoldmsg"
+        maker.message(createIfNotExisting(msgModule,"items") as {any},uniqueName,single)
     end
   end
 end
 
-local function remove_empty_modules(input:table)
-  while utils.removeHydra(input) do end
-end
+--// local function remove_empty_modules(input:table)
+--//   while utils.removeHydra(input) do 
+--//     print("Removed hydra")
+--//   end
+--// end
 
 function parser.filter_json(input:{any}):{MModule}
   --- Why a cache? So multiple modules with the same name like b2d and b2d.body can be merged
@@ -134,11 +152,12 @@ function parser.filter_json(input:{any}):{MModule}
   for _,md in ipairs(input) do
     local mod = md as table
     if mod.elements and mod.info then
-      parse_module(output_cache, mod.elements as table,mod.info as table) 
+      parse_module(output_cache, mod.elements as {string:MSingleItem},mod.info as table) 
     end
   end
-  remove_empty_modules(output_cache)
-  --- Merge here yaaaay
+  --- *Due to how the parser is reestructured, empty modules should not be a problem anymore. 
+  --- But keep this code just in case because it's badass
+  -- remove_empty_modules(output_cache)
   for _, value in pairs(output_cache) do
     table.insert(output,value)
   end

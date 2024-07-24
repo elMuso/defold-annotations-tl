@@ -22,7 +22,8 @@ local api_path = config.api_folder .. config.folder_separator ..  'defosld.d.tl'
 local modules = parser.parse_json(json_paths)
 local filtered = parser.filter_json(modules)
 utils.save_file(dump(filtered), api_path..".tl")
-local generated = generator.generate(filtered)
+local generated = utils.get_default_types().. generator.generate(filtered)
+
 utils.save_file(generated, api_path)
 -- local d =''
 -- for _, v in ipairs(modules) do

@@ -18,108 +18,109 @@ end
 
 local function make_documentation(docs:string, indent:number):string
     local lines = utils.split(docs, "\n")
+    local mlines = {}
     local output = ''
     for _, line in ipairs(lines) do
-        output = output .."\n" .. "---" .. line
+        table.insert(mlines,"---" .. line)
     end
-    output = indent_text(output,indent)
+    output = indent_text(table.concat(mlines,"\n"),indent)
     return output
 end    
 
-local function generate_record_data(input:{table},indentation:number):string
-    local output = ''
-
-    for _, value in ipairs(input) do
-        if not(value.tag==nil) then
-            
-            if value.tag == MType.PROPERTY then
-                local data = value as MProperty
-                local typerep = data.type
-                if typerep == "nil" then typerep = "constant" end
-                output = output .. make_documentation(data.documentation,0) 
-                output = output .. tostring(data.name) .. ": " .. typerep.."\n"
-            elseif value.tag == MType.VARIABLE then
-                local data = value as MVar
-                local typerep = data.type
-                if typerep == "nil" then typerep = "constant" end
-                output = output .. make_documentation(data.documentation,0) 
-                output = output .. tostring(data.name) .. ": " .. typerep.."\n"
-            elseif value.tag == MType.MESSAGE then
-                local data = value as MMessage
-                output = output .. make_documentation(data.documentation,0) 
-                output = output .. tostring(data.name) .. ": defoldmessage = '".. tostring(data.name).."'\n"
-            end
-        --- It's a MType!
-        -- -- print("catched a mtype")
-
-        -- else
-        --     local val = value as {table}
-        --     output = output .. generate_record_data(val,indentation+1)
-        end
+local function gen_params(input:nil|{MParameter}):string
+    if not input then return '' end
+    local output = {}
+    for _, param in ipairs(input as {MParameter}) do
+        local types = table.concat(param.types,"|")
+        table.insert(output,param.name .. ": ".. types)
     end
-    -- end
-    -- if is_record then output = output .. 'end\n\n' end
-    return indent_text(output,indentation)
+
+    return table.concat(output,", ")
 end
 
---- Unwrap iterates over a array 
---- It caches the elements inside the array that have TAGS and send them to generate_record_data
---- The rest of the elements are made into a local record and resent to unwrap
-local function unwrap(input:{table}, indent:number):string
-    local output = ''
-    local is_array =  utils.is_array(input)
-    if not is_array then
-        --- Handle maps
-        for name, value in pairs(input as {string:table}) do
-            output = output .. "\trecord "..tostring(name).."\n"
-            output = output .. unwrap(value as {table}, indent+1)
-            output = output .. "\tend\n\n"
-        end
-        return output
+local function gen_return(input:nil|{MParameter}):string
+    if not input then return '' end
+    local output = {}
+    for _, param in ipairs(input as {MParameter}) do
+        local types = table.concat(param.types,"|")
+        table.insert(output,types)
     end
+    if #output > 1 then
+        return ': {'.. table.concat(output,", ") ..'}'
+    end
+    return ': '.. output[1]
+end
 
-    local elements_cache = {}
-    local unwrap_targets = {}
-    for _, element in ipairs(input) do
-        if element.tag then
-            -- print("inserting element")
-            table.insert(elements_cache,element)
-        else
-            -- print("inserting target")
-            table.insert(unwrap_targets,element)
-        end
-    end
-
-    for _, val in ipairs(unwrap_targets) do
-        output = output .. unwrap(val as {table},indent+1)
-    end
-    output = output .. generate_record_data(elements_cache,indent+1)
+local function generate_function(input:MFunc):string
+    local output = make_documentation(input.documentation,0) 
+    output = output .. tostring(input.name) .. ": function(" .. gen_params(input.params)..')'..gen_return(input.return_value)
     return output
 end
 
---- We make multiple global namespaces
-local function global_namespace(input:MModule, indent:number):string
-    local output = ''
-    if input.documentation then
-        output = output .. make_documentation(tostring(input.documentation), indent)
-    end
-    for name, children in pairs(input.items) do
-        output = output .. "global record "..tostring(name).."\n"
-        output = output .. unwrap(children as {table}, indent)
-        output = output .. "end\n\n"
-    
-    end
-    return output
-end
---- Special handling of messages
-local function add_messages(input:any, indent:number):string
-    local output = ''
-    output = output.. 'global defoldmessages = {'
-    for _, val in ipairs(input as {table}) do
-        output = output .. make_documentation(val.documentation as string,indent+1)
-        output = output .. "\t"..tostring(val.name) .. ' = "' .. tostring(val.name) ..'",\n'
+local function add_messages(input:MModule, indent:number):string
+    local output = 'global defoldmsg = {\n'
+    for _, val in ipairs(input.items) do
+        if val.tag == MType.MESSAGE then 
+            local obj = val as MMessage
+            ---! Duplicated strings, review
+            ---? Maybe create go.message's for every message? I mean, they have documentation and could be 
+            ---? under a defold object, like defold.acquire_input_focus(".")
+            output = output .. make_documentation(obj.documentation as string,indent+1)
+            output = output .. "\t"..tostring(obj.name) .. ' = "' .. tostring(obj.name) ..'",\n'
+        end
     end 
     output = output.. '}'
+    return output
+end
+
+local function generate_variable(input:MVar):string
+    local typerep = input.type
+    if typerep == "nil" then typerep = "constant" end
+    local output = make_documentation(input.documentation,0) 
+    output = output .. tostring(input.name) .. ": " .. typerep
+    return output
+end
+
+
+local function add_data(data:table, indent:number):string
+    local output = ''
+    if not data.tag then
+        ---! We have reached an unknown piece of data (probably an array). PANIC
+        return ''
+    end
+
+    local function parse_module(mod:MModule, lindent:number)
+        output = output .. "record "..tostring(mod.name).."\n"
+        for _, dat in ipairs(mod.modules or {}) do
+            output = output .. add_data(dat as table, lindent)
+        end
+        for _, dat in ipairs(mod.items or {}) do
+            output = output .. add_data(dat as table, lindent)
+        end
+        output = indent_text(output .. "end",lindent)
+    end
+
+    if data.tag == MType.MODULE then
+        local obj = data as MModule
+        output = output .. make_documentation(tostring(obj.documentation), indent)
+        output = output .. "global "
+        parse_module(obj, indent)
+    elseif data.tag == MType.NESTED_MODULE then 
+        local obj = data as MModule
+        output = output .. make_documentation(tostring(obj.documentation), indent)
+        indent = indent + 1
+        parse_module(obj, indent)
+    elseif data.tag == MType.VARIABLE then 
+        output = output .. indent_text(generate_variable(data as MVar),indent + 1)
+    elseif data.tag == MType.FUNCTION then 
+        output = output .. indent_text(generate_function(data as MFunc),indent + 1)
+    elseif data.tag == MType.PROPERTY then 
+        local obj = data as MProperty
+        ---! This is useless for now. Maybe a custom property module should be added for sending messages
+        ---! That generates functions
+        output = output .. indent_text("set: function(node:string," .. obj.name .. ":string, value:"..obj.type..")" ,indent+1)
+    end
+
     return output
 end
 
@@ -127,10 +128,11 @@ function generator.generate(input:{MModule}):string
     local indentation = 0
     local output = ''
     for _, module in ipairs(input) do
-        if not((module as table).defoldmessages == nil) then
-            output = output..add_messages((module as table).defoldmessages,indentation)
-        elseif module.items then  
-            output = output..global_namespace(module,indentation)
+        if module.name == "defoldmsg" then
+            --- We handle this in a special way
+            output = output..add_messages(module,indentation)
+        else  
+            output = output..add_data(module as table,indentation)
         end
     end
     return output

@@ -148,28 +148,32 @@ function utils.is_array(t:any):boolean
   end
   return true
 end
+
+function utils.get_default_types():string
+  return utils.read_file("required_types.d.tl")
+end
 -- Function to recursively remove all empty tables from a table
 -- Returns true if at least one table was deleted
-function utils.removeHydra(tbl:table):boolean
-      local function isEmptyTable(t:table):boolean
-          return type(t) == "table" and next(t) == nil
-      end
-      local deleted = false
-      local function removeEmpty(tbl:table)
-          for k, v in pairs(tbl) do
-              if type(v) == "table" then
-                  if isEmptyTable(v as table) then
-                      deleted = true
-                      tbl[k] = nil  -- Remove empty table from parent table
-                  else
-                      removeEmpty(v as table)  -- Recursively remove empty tables inside this table
-                  end
-              end
-          end
-      end
-      removeEmpty(tbl)
-      return deleted
-  end
+--// function utils.removeHydra(tbl:table):boolean
+--//       local function isEmptyTable(t:table):boolean
+--//           return type(t) == "table" and next(t) == nil
+--//       end
+--//       local deleted = false
+--//       local function removeEmpty(tbl:table)
+--//           for k, v in pairs(tbl) do
+--//               if type(v) == "table" then
+--//                   if isEmptyTable(v as table) then
+--//                       deleted = true
+--//                       tbl[k] = nil  --// Remove empty table from parent table
+--//                   else
+--//                       removeEmpty(v as table)  --// Recursively remove empty tables inside this table
+--//                   end
+--//               end
+--//           end
+--//       end
+--//       removeEmpty(tbl)
+--//       return deleted
+--//   end
 
 
 return utils

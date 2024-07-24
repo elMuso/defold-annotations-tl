@@ -1,5 +1,6 @@
 local _ = require("ptypes")
 local utils = require("utils")
+local config = require("config")
 local defold_logic = require("defold_logic")
 local maker = {}
 
@@ -17,17 +18,17 @@ local function removeEmptyLines(str:string):string
     return table.concat(lines, "\n")
 end
 local function parse_documentation(brief:string|nil, description:string|nil, examples:string|nil):string 
-    -- return ''
-    local documentation = ''
-    if not (brief == description) then
-        documentation =  utils.sanitized(brief) .. "\n".. utils.sanitized(description)
-    else
-        documentation = utils.sanitized(brief)
-    end
-    if examples and not(examples=='')then
-          documentation = documentation .."\nExamples\n".. utils.sanitized(examples)
-        end
-    return removeEmptyLines(documentation)
+    return '""'
+    -- local documentation = ''
+    -- if not (brief == description) then
+    --     documentation =  utils.sanitized(brief) .. "\n".. utils.sanitized(description)
+    -- else
+    --     documentation = utils.sanitized(brief)
+    -- end
+    -- if examples and not(examples=='')then
+    --       documentation = documentation .."\nExamples\n".. utils.sanitized(examples)
+    --     end
+    -- return removeEmptyLines(documentation)
 end
     
     local function extract_property_type(str:string):string
@@ -43,7 +44,7 @@ end
     --- WARNING really unoptimized code... whatever
     local function should_fold_types(types:{string}):boolean
         table.sort(types)
-        local uncompatible:{{string}} = defold_logic.uncompatible_types
+        local uncompatible:{{string}} = defold_logic.uncompatible_types as {{string}}
         --- We iterate over every uncompatible type collection
         for _, comparator in ipairs(uncompatible) do
             table.sort(comparator)
@@ -69,13 +70,34 @@ end
         local params:{MParameter} = {}
         for _, val in ipairs(input) do
             local item:MParameter = {}
-            item.types = val.types as {string}
+            local nm =  val.name as string
+            nm = string.gsub(nm,"%[", "")
+            nm = string.gsub(nm,"%]", "")
+            nm = string.gsub(nm,"-", "_")
+            nm = string.gsub(nm,"repeat", "should_repeat") --! HOTFIX: This is needed, don't delete
+            if string.find(nm,'%.%.%.') then nm = '...' end
+            local types = {}
+            for _, tp in ipairs(val.types as {string}) do
+                local p  = tp
+                if string.find(p,"function")then 
+                    for _,rep in ipairs(config.function_replacement) do
+                        if rep == "self" then
+                            print(p.."  "..rep)
+                        end
+                        p = string.gsub(p,rep,'any')
+                    end
+                end
+                table.insert(types,p)
+            end
+            
+            item.types = types
             item.documentation = parse_documentation(val.doc as string,'','')
-            item.name = val.name as string
+            item.name = nm
             item.tag = MType.PARAMETER
             item.shouldFold = should_fold_types(item.types)
             table.insert(params,item)
         end
+        if #params == 0 then return nil end
         return params
     end
     
@@ -110,7 +132,7 @@ end
 
     function maker.message(buffer:{any},name:string,element:MSingleItem)
         local data:MMessage = {}
-        data.parameters = {}
+        data.params = {}
         -- extract_parameters(element.parameters as {{string:any}})
         data.name= name
         data.documentation = parse_documentation(element.brief,element.description,element.examples)
@@ -118,15 +140,23 @@ end
         table.insert(buffer,data)
     end
 
-    function maker.addfunction(buffer:table,name:string,element:MSingleItem)
+    function maker.addfunction(buffer:{any},name:string,element:MSingleItem)
         local data:MFunc = {}
+        ---! Check if the function is blacklisted
+        for _, val in ipairs(defold_logic.ignored_functions as {string}) do
+            if name == val then return end
+            if string.find(val,"*") then
+                local nval=val:gsub("*","")
+                if name:sub(1, #nval ) == nval then
+                    return 
+                end
+            end
+        end
         data.name= name
-        data.parameters = extract_parameters(element.parameters as {{string:any}})
+        data.params = extract_parameters(element.parameters as {{string:any}})
         data.documentation = parse_documentation(element.brief,element.description,element.examples)
         if element.returnvalues and not(#element.returnvalues==0) then
             data.return_value = extract_parameters(element.returnvalues as {{string:any}})
-        else
-            data.return_value = {}
         end
         data.tag =  MType.FUNCTION
         table.insert(buffer as {any},data)
