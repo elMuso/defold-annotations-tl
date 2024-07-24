@@ -108,13 +108,14 @@ end
         table.insert(buffer,data)
     end
 
-    function maker.message(buffer:table,name:string,element:MSingleItem)
+    function maker.message(buffer:{any},name:string,element:MSingleItem)
         local data:MMessage = {}
-        data.parameters = extract_parameters(element.parameters as {{string:any}})
+        data.parameters = {}
+        -- extract_parameters(element.parameters as {{string:any}})
         data.name= name
         data.documentation = parse_documentation(element.brief,element.description,element.examples)
         data.tag = MType.MESSAGE
-        table.insert(buffer as {any},data)
+        table.insert(buffer,data)
     end
 
     function maker.addfunction(buffer:table,name:string,element:MSingleItem)

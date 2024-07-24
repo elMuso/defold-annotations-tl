@@ -108,11 +108,17 @@ local function parse_module(bufferIndex:{string:MModule}, elements:table, info:t
     elseif utype == MType.PROPERTY then
       --- All constants are not namepaced correctly, but they  aren't so this fixes it 
       -- local nmprop:{string} = utils.split(realNamespace,"%.")
-      if not buffer.items then buffer.items = {} end
       modbuffer = maker.get_inner_buffer(buffer.items,{bufferName})
       maker.property(modbuffer,singleElement.name,singleElement)
     elseif utype == MType.MESSAGE then
-      -- maker.message(modbuffer,realName,singleElement)
+      --- All messages are strings, so we make a single module with special treatment
+      if not bufferIndex["defoldmessages"] then
+        bufferIndex["defoldmessages"] = {}
+        local bf = maker.get_inner_buffer(bufferIndex,{"defoldmessages","items", "defoldmessages"})
+        bufferIndex["defoldmessages"].documentation = ''
+        bufferIndex["defoldmessages"].items = {}
+      end
+      maker.message(maker.get_inner_buffer(bufferIndex["defoldmessages"] as table,{"defoldmessages"}) as {table},realName,singleElement)
     end
   end
 end

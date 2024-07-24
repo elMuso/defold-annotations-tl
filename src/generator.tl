@@ -46,6 +46,8 @@ local function generate_record_data(input:{table},indentation:number):string
                 output = output .. tostring(data.name) .. ": " .. typerep.."\n"
             elseif value.tag == MType.MESSAGE then
                 local data = value as MMessage
+                output = output .. make_documentation(data.documentation,0) 
+                output = output .. tostring(data.name) .. ": defoldmessage = '".. tostring(data.name).."'\n"
             end
         --- It's a MType!
         -- -- print("catched a mtype")
@@ -102,11 +104,22 @@ local function global_namespace(input:MModule, indent:number):string
         output = output .. make_documentation(tostring(input.documentation), indent)
     end
     for name, children in pairs(input.items) do
-        -- print("making global record "..name)
         output = output .. "global record "..tostring(name).."\n"
         output = output .. unwrap(children as {table}, indent)
         output = output .. "end\n\n"
+    
     end
+    return output
+end
+--- Special handling of messages
+local function add_messages(input:any, indent:number):string
+    local output = ''
+    output = output.. 'global defoldmessages = {'
+    for _, val in ipairs(input as {table}) do
+        output = output .. make_documentation(val.documentation as string,indent+1)
+        output = output .. "\t"..tostring(val.name) .. ' = "' .. tostring(val.name) ..'",\n'
+    end 
+    output = output.. '}'
     return output
 end
 
@@ -114,7 +127,9 @@ function generator.generate(input:{MModule}):string
     local indentation = 0
     local output = ''
     for _, module in ipairs(input) do
-        if module.items then  
+        if not((module as table).defoldmessages == nil) then
+            output = output..add_messages((module as table).defoldmessages,indentation)
+        elseif module.items then  
             output = output..global_namespace(module,indentation)
         end
     end
