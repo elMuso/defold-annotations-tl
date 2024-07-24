@@ -8,8 +8,8 @@
 
 local config = {}
 
----Folder separator
-config.folder_separator = package.config:sub(1, 1)
+-- ---Folder separator
+-- config.folder_separator = package.config:sub(1, 1)
 
 ---Clean temporary files after completion
 config.clean_traces = false
@@ -17,18 +17,18 @@ config.clean_traces = false
 ---Url of this project on github
 config.generator_url = 'github.com/astrochili/defold-annotations'
 
----Url to find out the latest version of Defold
-function config.info_url()
-  return 'https://d.defold.com/stable/' .. config.info_json
-end
+-- ---Url to find out the latest version of Defold
+-- function config.info_url()
+--   return 'https://d.defold.com/stable/' .. config.info_json
+-- end
 
----File name of the info about the letest version
-config.info_json = 'info.json'
+-- ---File name of the info about the letest version
+-- config.info_json = 'info.json'
 
 ---Url to find out the documentation archive
-function config.doc_url(version)
-  return 'https://github.com/defold/defold/releases/download/' .. version .. '/' .. config.doc_zip
-end
+-- function config.doc_url(version)
+--   return 'https://github.com/defold/defold/releases/download/' .. version .. '/' .. config.doc_zip
+-- end
 
 ---File name of the documentation archive
 config.doc_zip = 'ref-doc.zip'

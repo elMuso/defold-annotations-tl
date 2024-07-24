@@ -6,8 +6,8 @@
   MIT license. See LICENSE for details.
 --]]
 
-local config = require 'src.config'
-
+local config = require ('config')
+local utils = require("utils")
 local terminal = {}
 
 --
@@ -16,9 +16,7 @@ local terminal = {}
 local is_windows = config.folder_separator == '\\'
 
 ---Wrap the path in double quotes
----@param path string
----@return string
-local function quoted(path)
+local function quoted(path:string):string
   return '"' .. path .. '"'
 end
 
@@ -26,16 +24,16 @@ end
 ---@param unix_command string
 ---@param windows_command string
 ---@return boolean?
-local function execute(unix_command, windows_command)
+local function execute(unix_command:string, windows_command:string):boolean|nil
   if is_windows then
-    local pipe = io.popen('powershell -command -', 'w')
+    local pipe:FILE = io.popen('powershell -command -', 'w')
     assert(pipe, 'Can\'t init powershell session')
 
     if pipe:write(windows_command) then
-      return pipe:close()
+      return pipe:close() as boolean|nil
     end
   else
-    return os.execute(unix_command)
+    return os.execute(unix_command) as boolean|nil
   end
 end
 
@@ -43,10 +41,8 @@ end
 -- Public
 
 ---Download the file at url
----@param url string
----@param output_path string
-function terminal.download(url, output_path)
-  print('Downloading the file from ' .. quoted(url))
+function terminal.download(url:string, output_path:string)
+  utils.log('Downloading the file from ' .. quoted(url))
 
   local result = execute(
     'curl -s -L ' .. url .. ' -o ' .. quoted(output_path),
@@ -54,13 +50,12 @@ function terminal.download(url, output_path)
   )
 
   assert(result, 'Error during downloading file "' .. url .. '"')
-  print('The file ' .. quoted(url) .. ' has been successfully downloaded and saved as ' .. quoted(output_path))
+  utils.log('The file ' .. quoted(url) .. ' has been successfully downloaded and saved as ' .. quoted(output_path))
 end
 
 ---Delete the file
----@param path string
-function terminal.delete_file(path)
-  print('Deleting the file ' .. quoted(path))
+function terminal.delete_file(path:string)
+  utils.log('Deleting the file ' .. quoted(path))
 
   local result = execute(
     'rm -f ' .. quoted(path),
@@ -68,13 +63,12 @@ function terminal.delete_file(path)
   )
 
   assert(result, 'Error during deleting the file "' .. path .. '"')
-  print('The file ' .. quoted(path) .. ' has been successfully deleted')
+  utils.log('The file ' .. quoted(path) .. ' has been successfully deleted')
 end
 
 ---Delete the folder with all the content
----@param path string
-function terminal.delete_folder(path)
-  print('Deleting the folder ' .. quoted(path))
+function terminal.delete_folder(path:string)
+  utils.log('Deleting the folder ' .. quoted(path))
 
   local result = execute(
     'rm -rf ' .. quoted(path),
@@ -82,13 +76,12 @@ function terminal.delete_folder(path)
   )
 
   assert(result, 'Error during deleting the folder "' .. path .. '"')
-  print('The folder ' .. quoted(path) .. ' has been successfully deleted')
+  utils.log('The folder ' .. quoted(path) .. ' has been successfully deleted')
 end
 
 ---Create a new folder
----@param path string
-function terminal.create_folder(path)
-  print('Creating the folder ' .. quoted(path))
+function terminal.create_folder(path:string)
+  utils.log('Creating the folder ' .. quoted(path))
 
   local result = execute(
     'mkdir ' .. quoted(path),
@@ -96,14 +89,12 @@ function terminal.create_folder(path)
   )
 
   assert(result, 'Error during creating a folder "' .. path .. '"')
-  print('The folder ' .. quoted(path) .. ' has been successfully created')
+  utils.log('The folder ' .. quoted(path) .. ' has been successfully created')
 end
 
 ---Unzip a zip archive
----@param path string
----@param destination string
-function terminal.unzip(path, destination)
-  print('Unzipping the archive ' .. quoted(path))
+function terminal.unzip(path:string, destination:string)
+  utils.log('Unzipping the archive ' .. quoted(path))
 
   local result = execute(
     'unzip -q ' .. quoted(path) .. ' -d ' .. quoted(destination),
@@ -111,17 +102,17 @@ function terminal.unzip(path, destination)
   )
 
   assert(result, 'Error during unziping the archive "' .. path .. '"')
-  print('The archive ' .. quoted(path) .. ' has been successfully unzipped')
+  utils.log('The archive ' .. quoted(path) .. ' has been successfully unzipped')
 end
 
 ---Find all files in the folder with the exact extension and save the list in the output file
 ---@param folder_path string
 ---@param extension string
 ---@param output_path string
-function terminal.list_all_files(folder_path, extension, output_path)
+function terminal.list_all_files(folder_path:string, extension:string, output_path:string)
   --Should delete if existing
   terminal.delete_file(output_path)
-  print('Listing the ' .. extension .. ' files at ' .. quoted(folder_path))
+  utils.log('Listing the ' .. extension .. ' files at ' .. quoted(folder_path))
 
   local result = execute(
     'find ' ..
@@ -132,7 +123,7 @@ function terminal.list_all_files(folder_path, extension, output_path)
   )
 
   assert(result, 'Error during listing the files at "' .. folder_path .. '"')
-  print('The list of ' .. extension .. ' files has been successfully listed and saved to ' .. quoted(output_path))
+  utils.log('The list of ' .. extension .. ' files has been successfully listed and saved to ' .. quoted(output_path))
 end
 
 return terminal

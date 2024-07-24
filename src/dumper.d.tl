@@ -1,0 +1,1 @@
+global dump: function (val:table):string
