@@ -104,7 +104,7 @@ local function parse_module(bufferIndex:{string:MModule}, elements:{string:MSing
   root.tag = MType.MODULE
   root.name = modname
   if modbrief and moddesc then
-    root.documentation = tostring(modbrief) .. '\n' .. utils.sanitized(tostring(moddesc))
+    root.documentation = maker.parse_documentation(modbrief as string,moddesc as string,'')
   end
   createIfNotExisting(root as {string:any}, "items")
   for _, single in pairs(elements) do
@@ -116,8 +116,7 @@ local function parse_module(bufferIndex:{string:MModule}, elements:{string:MSing
     names[#names] = nil
     local module = get_sub_module(root as table, names)
     local itemIndex = createIfNotExisting(module,"items") as {any}
-    module.documentation =  '""'
-
+    
     local utype = single.type as string
       --- type can be VARIABLE, FUNCTION ,PROPERTY, MESSAGE
     if utype == MType.VARIABLE then
@@ -155,9 +154,9 @@ function parser.filter_json(input:{any}):{MModule}
       parse_module(output_cache, mod.elements as {string:MSingleItem},mod.info as table) 
     end
   end
-  --- *Due to how the parser is reestructured, empty modules should not be a problem anymore. 
+  ---* Due to how the parser is reestructured, empty modules should not be a problem anymore. 
   --- But keep this code just in case because it's badass
-  -- remove_empty_modules(output_cache)
+  --- remove_empty_modules(output_cache)
   for _, value in pairs(output_cache) do
     table.insert(output,value)
   end

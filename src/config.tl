@@ -12,6 +12,8 @@ local record configuration
     ignored_docs:{string}
     quiet_mode:boolean
     function_replacement:{string}
+    parameter_replacement:{string:string}
+    parameter_specific_replacement:{string:{string,string}}
 end
 
 local config:configuration = {}
@@ -76,4 +78,24 @@ config.function_replacement = {
     'self','url','result','property','node','emitter','state','status','hexdigest','message','data','request_id',
     'handle', 'any_id','id','time_elapsed','traceback','event','sender', 'source','response'
   }
+---Some parameters types are badly named or should be modified to avoid Teal issues, write a match and a replacement
+--- Must be an exact match
+config.parameter_replacement = {
+ ["vmath.vector3"]="vector3",
+ ["vmath.vector4"]="vector4",
+ ["quat"]="quaternion",
+ ["vmath.matrix4"] = "matrix4",
+  vector = 'vector4|vector3',
+  resource = 'resource_data',
+  buffer = 'buffer_data',
+  bufferstream = 'buffer_stream',
+  handle = 'resource_handle',
+  texture = 'resource_handle',
+  predicate = 'render_predicate',
+  client = 'socket_client',
+  master = 'socket_master',
+  unconnected = 'socket_unconnected',
+}
+
+
 return config

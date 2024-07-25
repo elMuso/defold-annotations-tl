@@ -171,6 +171,7 @@ global record vector4
 end
 
 global type array = table
+
 global record b2Body userdata end
 global type b2BodyType =  number
 global record b2World userdata end
@@ -190,4 +191,10 @@ global record resource_handle userdata end
 global record socket_client userdata end
 global record socket_master userdata end
 global record socket_unconnected userdata end
-
+global record bufferstream userdata end ---? Is this correct
+global record predicate userdata end ---? Is this correct
+global type vector = table ---? Is this correct
+global type master = table ---? Is this correct
+global type unconnected = table ---? Is this correct
+global type client = table ---? Is this correct
+global type handle = any ---? Is this correct

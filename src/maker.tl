@@ -17,20 +17,27 @@ local function removeEmptyLines(str:string):string
     end
     return table.concat(lines, "\n")
 end
+
+
+
 local function parse_documentation(brief:string|nil, description:string|nil, examples:string|nil):string 
-    return '""'
-    -- local documentation = ''
-    -- if not (brief == description) then
-    --     documentation =  utils.sanitized(brief) .. "\n".. utils.sanitized(description)
-    -- else
-    --     documentation = utils.sanitized(brief)
-    -- end
-    -- if examples and not(examples=='')then
-    --       documentation = documentation .."\nExamples\n".. utils.sanitized(examples)
-    --     end
-    -- return removeEmptyLines(documentation)
+    local documentation = ''
+    if not (brief == description) then
+        documentation =  utils.sanitized(brief) .. "\n".. utils.sanitized(description)
+    else
+        documentation = utils.sanitized(brief)
+    end
+    if examples and not(examples=='')then
+          documentation = documentation .."\n - - - - - - - - - - - - Example - - - - - - - - - - - - \n"
+          .. utils.sanitized(examples)
+        end
+    return removeEmptyLines(documentation)
 end
-    
+
+function maker.parse_documentation(brief:string|nil, description:string|nil, examples:string|nil):string 
+    return parse_documentation(brief,description,examples)
+end
+
     local function extract_property_type(str:string):string
         local pattern = "%<span class=\"type\">([^<]+)</span>"
         local match = string.match(str, pattern)
@@ -81,13 +88,19 @@ end
                 local p  = tp
                 if string.find(p,"function")then 
                     for _,rep in ipairs(config.function_replacement) do
-                        if rep == "self" then
-                            print(p.."  "..rep)
-                        end
                         p = string.gsub(p,rep,'any')
                     end
                 end
-                table.insert(types,p)
+                for name, replace in pairs(config.parameter_replacement) do
+                    if p == name then
+                        p = replace
+                    end
+                    -- p = string.gsub(p,name,replace)
+                end
+                local tps = utils.split(p,"|")
+                for _, v in ipairs(tps) do
+                    table.insert(types,v)
+                end
             end
             
             item.types = types
@@ -140,6 +153,31 @@ end
         table.insert(buffer,data)
     end
 
+    local function replace_params(element:MSingleItem, isParameter:boolean):{any}|nil
+        local root = element.returnvalues
+        local rval = defold_logic.specific_replace
+        local sub = 'return_table_'
+        if not root then return end
+        if isParameter then 
+            root = element.parameters
+            sub = 'param_table_'
+        end
+        for name, replacebundle in pairs(rval as table) do
+            if (name as string) == (element.name as string) then
+                for bundlename, bundlevalue in pairs(replacebundle as table) do
+                    local rname = string.gsub(bundlename as string,sub,'')
+                    for _,val in ipairs(root as {table}) do
+                        --- FIXME this is not working. Don't have more energy to continue...
+                        if (val.name as string) == rname then
+                            val.type = bundlevalue
+                        end
+                    end
+                end
+            end
+        end
+        return root
+    end
+
     function maker.addfunction(buffer:{any},name:string,element:MSingleItem)
         local data:MFunc = {}
         ---! Check if the function is blacklisted
@@ -153,10 +191,11 @@ end
             end
         end
         data.name= name
-        data.params = extract_parameters(element.parameters as {{string:any}})
+        data.params = extract_parameters(replace_params(element,true) as {{string:any}})
         data.documentation = parse_documentation(element.brief,element.description,element.examples)
-        if element.returnvalues and not(#element.returnvalues==0) then
-            data.return_value = extract_parameters(element.returnvalues as {{string:any}})
+        local rvalues = replace_params(element,false) 
+        if rvalues and not(#rvalues==0) then
+            data.return_value = extract_parameters(rvalues as {{string:any}})
         end
         data.tag =  MType.FUNCTION
         table.insert(buffer as {any},data)
